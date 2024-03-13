@@ -1,0 +1,2 @@
+step 1: javac PGPEncryption.java
+step 2: java PGPEncryption /path keyname
