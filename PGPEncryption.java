@@ -1,5 +1,11 @@
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributeView;
+import java.nio.file.attribute.FileTime;
 import java.security.InvalidKeyException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 public class PGPEncryption {
 
@@ -28,19 +34,30 @@ public class PGPEncryption {
         String[] cmd = {"gpg","-r",recipient,"--batch","--yes","--trust-model","always","-e","-o","",""};
         if (fileList != null){
             for (File file:fileList){
+                BasicFileAttributeView attributes = Files.getFileAttributeView(Path.of(file.toString()), BasicFileAttributeView.class);
+                FileTime creationTime = attributes.readAttributes().creationTime();
+                Instant currentTime = Instant.now();
+                // Check if the file creation time is 15 minutes ago
+                Instant fifteenMinutesAgo = currentTime.minus(15, ChronoUnit.MINUTES);
+                
                 if (endsWithSubstring(file.getAbsolutePath(), "." + encryptFileExtension)) {
-                    File gpgfile = new File(file.getAbsolutePath()+".gpg");
-                    if (!gpgfile.exists()){
-                        cmd[cmd.length-2] = file.getAbsolutePath()+".gpg";
-                        cmd[cmd.length-1] = file.getAbsolutePath();
-                        process = Runtime.getRuntime().exec(cmd);
-                        if (process.waitFor()==0){
-                            System.out.println("File encrypted {}." + file.getAbsolutePath());
-                        }else{
-                            throw new Exception("PGPEncryption process returned failed for file: " + file.getAbsolutePath());
+                    if (creationTime.toInstant().isBefore(fifteenMinutesAgo)) {
+                        File gpgfile = new File(file.getAbsolutePath()+".gpg");
+                        if (!gpgfile.exists()){
+                            cmd[cmd.length-2] = file.getAbsolutePath()+".gpg";
+                            cmd[cmd.length-1] = file.getAbsolutePath();
+                            process = Runtime.getRuntime().exec(cmd);
+                            if (process.waitFor()==0){
+                                System.out.println("File encrypted {}." + file.getAbsolutePath());
+                            }else{
+                                throw new Exception("PGPEncryption process returned failed for file: " + file.getAbsolutePath());
+                            }
+                        } else {
+                            System.out.println("This file has already been encrypted: " + file.getAbsolutePath());
                         }
+                        System.out.println("The file was created 15 minutes ago.");
                     } else {
-                        System.out.println("This file has already been encrypted: " + file.getAbsolutePath());
+                        System.out.println("The file was not created 15 minutes ago.");
                     }
                 } else {
                     System.out.println("Invalid file extension: " + file.getAbsolutePath());
@@ -56,13 +73,11 @@ public class PGPEncryption {
     }
 
     public static void main(String[] args){
-        
         try{
             PGPEncryption pgpEncryption = new PGPEncryption(args[0], args[1], "afp");           
             pgpEncryption.encrypt();
         }catch (Exception e){
             System.out.println(e.toString());
         }
-        
     }
 }
